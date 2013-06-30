@@ -1,3 +1,41 @@
 #!/usr/bin/env ruby
 
-puts "Hello, world!"
+require 'ffish'
+
+require 'gli'
+include GLI::App
+
+version Ffish::VERSION
+
+
+desc 'Create a new ffish'
+long_desc """
+A ffish is what we call the new process knowledge we want to capture.
+"""
+
+command :new do |c|
+  c.desc 'Name of new ffish'
+  c.arg_name 'ffish_names'
+
+  c.action do |global_options,options,ffish_names|
+    if ffish_names.empty?
+      puts "Reading new ffish from stdin..."
+      ffish_names = STDIN.readlines.map { |a| a.chomp }
+    end
+
+    Ffish::Ffish.new_ffish(ffish_names)
+  end
+end
+
+desc 'List all the ffish'
+long_desc """
+A ffish is what we call the new process knowledge we want to capture.
+"""
+
+command :list do |c|
+  c.action do |global_options,options|
+    Ffish::Ffish.list_ffish
+  end
+end
+
+exit run(ARGV)

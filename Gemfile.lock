@@ -5,7 +5,7 @@ PATH
       gli
 
 GEM
-  remote: http://rubygems.org/
+  remote: https://rubygems.org/
   specs:
     aruba (0.4.11)
       childprocess (>= 0.2.3)
