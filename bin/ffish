@@ -1,7 +1,10 @@
 #!/usr/bin/env ruby
 
-require 'ffish'
+# toggle gli debug info
+ENV['GLI_DEBUG'] = 'true'
+DEBUG = true
 
+require 'ffish'
 require 'gli'
 include GLI::App
 
@@ -18,6 +21,7 @@ working_subdirectories = {
 }
 
 state_file = 'ffish.yaml'
+package_dir = 'packages'
 
 # END directory & file names
 
@@ -43,19 +47,24 @@ flag :working_directory
 pre do |global_options, command, options, args|
   # test for a working_directory, create it if not
   global_options[:work_dir] = File.expand_path global_options[:working_directory]
-  global_options[:state_file] = global_options[:work_dir] + '/' + state_file
+  global_options[:state_file] = File.join global_options[:work_dir], state_file
   
   working_subdirectories.each do |name, dir|
-    global_options[name] = global_options[:work_dir] + '/' + dir
+    global_options[name] = File.join global_options[:work_dir], dir
 
     unless File.directory? global_options[name]
       FileUtils.mkdir_p global_options[name]
     end
   end
 
+  global_options[:packages_dir] = package_dir
+
   unless File.exists? global_options[:state_file]
     FileUtils.touch global_options[:state_file]
   end
+
+  # setup context
+  global_options[:context] = {}
 
   true
 end
@@ -94,6 +103,62 @@ command :current do |c|
 
   c.action do |global_options, options, current_ffish|
     Ffish::Ffish.current_ffish(global_options, current_ffish[0])
+  end
+end
+
+desc 'Add a chunk to current ffish'
+long_desc """
+"""
+
+command :add do |c|
+  c.desc 'Add a chunk to current ffish'
+  c.arg_name 'chunk_names'
+
+  c.action do |global_options, options, chunk_names|
+    if chunk_names.empty?
+      puts "Reading new chunks from stdin..."
+      chunk_names = STDIN.readlines.map { |a| a.chomp }
+    end
+
+    Ffish::Ffish.add_chunk(global_options, chunk_names)
+  end
+end
+
+#####################################
+# ffish phase commands
+# switches 
+#   --chain, -c
+#   --solo, -s
+#   --force, -f
+#####################################
+
+# fetch - done 
+# extra - wait
+# config - ?
+# make -
+# install - 
+
+desc 'Fetch ffish resource'
+long_desc """
+"""
+
+command :fetch do |c|
+  c.desc 'Fetch ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.fetch_ffish(global_options)
+  end
+end
+
+desc 'Configure ffish resource'
+long_desc """
+"""
+
+command :configure do |c|
+  c.desc 'Configure ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.configure_ffish(global_options)
   end
 end
 
