@@ -6,35 +6,94 @@ require 'gli'
 include GLI::App
 
 version Ffish::VERSION
+$MY_NAME_IS = File.basename($PROGRAM_NAME, '.*')
+config_file File.join(ENV['HOME'], ".#{$MY_NAME_IS}rc.yaml")
+
+# directory & file names
+working_subdirectories = {
+  :ffarm_dir => 'ffarm',
+  :ffiles_dir => 'ffiles',
+  :aux_dir => 'ffiles/aux',
+  :ffish_dir => 'ffish'
+}
+
+state_file = 'ffish.yaml'
+
+# END directory & file names
 
 
-desc 'Create a new ffish'
+program_desc 'Manage all your ffish.'
+
+desc 'Set the options file'
 long_desc """
-A ffish is what we call the new process knowledge we want to capture.
+Set the options file. Defaults to user's HOME/.#{$MY_NAME_IS}rc.yaml
 """
+arg_name 'options_file'
+default_value "~/#{$MY_NAME_IS}rc.yaml"
+flag :options_file
+
+desc 'Set the working direcotry'
+long_desc """
+Set the working direcorty. Defaults to user's HOME directory.
+"""
+arg_name 'working_directory' # this is where we keep the ffish
+default_value "~/ffish"
+flag :working_directory
+
+pre do |global_options, command, options, args|
+  # test for a working_directory, create it if not
+  global_options[:work_dir] = File.expand_path global_options[:working_directory]
+  global_options[:state_file] = global_options[:work_dir] + '/' + state_file
+  
+  working_subdirectories.each do |name, dir|
+    global_options[name] = global_options[:work_dir] + '/' + dir
+
+    unless File.directory? global_options[name]
+      FileUtils.mkdir_p global_options[name]
+    end
+  end
+
+  unless File.exists? global_options[:state_file]
+    FileUtils.touch global_options[:state_file]
+  end
+
+  true
+end
 
 command :new do |c|
   c.desc 'Name of new ffish'
   c.arg_name 'ffish_names'
 
-  c.action do |global_options,options,ffish_names|
+  c.action do |global_options, options, ffish_names|
     if ffish_names.empty?
       puts "Reading new ffish from stdin..."
       ffish_names = STDIN.readlines.map { |a| a.chomp }
     end
 
-    Ffish::Ffish.new_ffish(ffish_names)
+    Ffish::Ffish.new_ffish(global_options, ffish_names)
   end
 end
 
 desc 'List all the ffish'
 long_desc """
-A ffish is what we call the new process knowledge we want to capture.
 """
 
 command :list do |c|
-  c.action do |global_options,options|
-    Ffish::Ffish.list_ffish
+  c.action do |global_options, options|
+    Ffish::Ffish.list_ffish(global_options)
+  end
+end
+
+desc 'Set or display the current ffish'
+long_desc """
+"""
+
+command :current do |c|
+  c.desc 'Current ffish'
+  c.arg_name 'current_ffish'
+
+  c.action do |global_options, options, current_ffish|
+    Ffish::Ffish.current_ffish(global_options, current_ffish[0])
   end
 end
 
