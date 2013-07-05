@@ -2,7 +2,8 @@
 
 # toggle gli debug info
 ENV['GLI_DEBUG'] = 'true'
-DEBUG = true
+# DEBUG = true
+DEBUG = false
 
 require 'ffish'
 require 'gli'
@@ -22,6 +23,7 @@ working_subdirectories = {
 
 state_file = 'ffish.yaml'
 package_dir = 'packages'
+logs_dir = 'logs'
 
 # END directory & file names
 
@@ -58,6 +60,7 @@ pre do |global_options, command, options, args|
   end
 
   global_options[:packages_dir] = package_dir
+  global_options[:logs_dir] = logs_dir
 
   unless File.exists? global_options[:state_file]
     FileUtils.touch global_options[:state_file]
@@ -132,12 +135,6 @@ end
 #   --force, -f
 #####################################
 
-# fetch - done 
-# extra - wait
-# config - ?
-# make -
-# install - 
-
 desc 'Fetch ffish resource'
 long_desc """
 """
@@ -146,7 +143,8 @@ command :fetch do |c|
   c.desc 'Fetch ffish resource'
 
   c.action do |global_options, options|
-    Ffish::Ffish.fetch_ffish(global_options)
+    # Ffish::Ffish.fetch_ffish(global_options)
+    Ffish::Ffish.do_ffish(global_options, c.names)
   end
 end
 
@@ -158,8 +156,84 @@ command :configure do |c|
   c.desc 'Configure ffish resource'
 
   c.action do |global_options, options|
-    Ffish::Ffish.configure_ffish(global_options)
+    Ffish::Ffish.do_ffish(global_options, c.names)
   end
 end
 
-exit run(ARGV)
+desc 'Make ffish resource'
+long_desc """
+"""
+
+command :make do |c|
+  c.desc 'Make ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+desc 'Clean ffish resource'
+long_desc """
+"""
+
+command :clean do |c|
+  c.desc 'Clean ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+desc 'Scrub ffish resource'
+long_desc """
+"""
+
+command :scrub do |c|
+  c.desc 'Scrub ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+desc 'Test ffish resource'
+long_desc """
+"""
+
+command :test do |c|
+  c.desc 'Test ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+desc 'Install ffish resource'
+long_desc """
+"""
+
+command :install do |c|
+  c.desc 'Install ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+desc 'Build ffish resource'
+long_desc """
+"""
+
+command :build do |c|
+  c.desc 'Build ffish resource'
+
+  c.action do |global_options, options|
+    Ffish::Ffish.do_ffish(global_options, c.names)
+  end
+end
+
+# begin
+  exit run(ARGV)
+# rescue Exception => ex
+#   puts "TERMINATED: #{ex.message}"
+# end

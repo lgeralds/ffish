@@ -1,15 +1,21 @@
 module Ffish
   class Ffish
       @naked_chunk = {
-        :fetch => [],
+        :context => {},
+        :fetch => ['url goes here'],
         :extra => [],
-        :config => [],
-        :make => [],
-        :install => []
+
+        :configure => ['./configure'],
+        :make => ['make'],
+        :test => ['make check'],
+        :install => ['make install'],
+        :clean => ['make clean'],
+        :scrub => ['if [ -e "%{chunk_dir}" ]; then rm -rf "%{chunk_dir}"; fi'],
+        :'build-macro' => ['fetch', 'extra', 'configure', 'clean', 'make', 'test', 'install']
       }
 
       @naked_ffish = {
-        :context => [],
+        :context => {},
         :chunks => []
       }
 
@@ -61,7 +67,7 @@ module Ffish
       end
     end
 
-    def self.ffish_each(g_opt)
+    def self.ffish_each(g_opt, phase=nil)
       current_ffish = get_current_ffish(g_opt[:state_file])
       ffish = {}
 
@@ -70,7 +76,7 @@ module Ffish
       end
 
       ffish[:chunks].each do |chunk|
-        yield g_opt, current_ffish, chunk
+        yield g_opt, current_ffish, chunk, phase
       end
     end
 
@@ -98,7 +104,8 @@ module Ffish
       end
     end
 
-    def self.fetch_chunk(g_opt, current_ffish, name)
+    def self.fetch_chunk(g_opt, current_ffish, name, phase)
+      puts "FETCH"
       require 'open-uri'
 
       fetches = []
@@ -111,6 +118,11 @@ module Ffish
 
       if fetches.count && !File.directory?(packages_dir)
         FileUtils.mkdir_p packages_dir
+      end
+
+      if !fetches.count
+        puts "NOTHING TO FETCH: #{name}"
+        return
       end
 
       puts "FETCHING FOR: #{name}"
@@ -139,89 +151,64 @@ module Ffish
       end
 
       # unpack it
-      ext = File.extname full_file_name
-      puts "EXT: #{ext}"
+      ext = File.extname(full_file_name).upcase
 
-      if ext.upcase == '.ZIP'
-        Executive.exe "unzip -o -qq '#{full_file_name}' -d '#{packages_dir}'"
-
-        # require 'zip/zip'
-
-        # Zip::ZipFile.open(full_file_name) do |zip_file|
-        #   zip_file.each do |f|
-        #     f_path = File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:packages_dir], f.name)
-        #     FileUtils.mkdir_p File.dirname(f_path)
-        #     unless File.exist?(f_path)
-        #       zip_file.extract(f, f_path)
-        #     end
-        #   end
-        # end
+      if ext == '.ZIP'
+        File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{name}-#{phase}.log"), "w+") do |file|
+          file.write Executive.exe("unzip -o -qq '#{full_file_name}' -d '#{packages_dir}'")
+        end
       end
 
-      if ext.upcase == '.GZ' || ext.upcase == '.TGZ'
-        # Executive.exe 'tar -xzf ' + full_file_name + ' --strip 1 -C ' + packages_dir
-        Executive.exe "tar -xf '#{full_file_name}' -C '#{packages_dir}'"
-
-        # require 'zlib'
-        # require 'tmpdir'
-        # require 'archive/tar/minitar'
-        # include Archive::Tar
-
-        # tmp_dir = Dir.tmpdir
-        # tmp_file = File.join(tmp_dir, File.basename(full_file_name, '.*'))
-        # puts "TMP: #{tmp_file}"
-
-        # begin
-        #   Zlib::GzipReader.open(full_file_name) do |gz|
-        #     File.open(tmp_file, "w") do |file|
-        #       file.write gz.read
-        #     end
-        #   end
-        #   #untar
-        #   Minitar.unpack(tmp_file, File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:packages_dir]))
-        # ensure
-        #   FileUtils.remove_entry tmp_file
-        # end
-      end
-
-      if ext.upcase == '.BZ2'
-        puts "BZIP2 broken in Ruby 2.0"
-        exit 1
-        # require 'bzip2'
-        # require 'tmpdir'
-        # require 'archive/tar/minitar'
-        # include Archive::Tar
-
-        # tmp_dir = Dir.tmpdir
-        # tmp_file = File.join(tmp_dir, File.basename(full_file_name, '.*'))
-        # puts "TMP: #{tmp_file}"
-
-        # begin
-        #   Bzip2::Reader.open(full_file_name) do |bz2| 
-        #     File.open(tmp_file, "w") do |file|
-        #       file.write bz2.read
-        #     end
-        #   end
-        #   #untar
-        #   Minitar.unpack(tmp_file, File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:packages_dir]))
-        # ensure
-        #   FileUtils.remove_entry tmp_file
-        # end
+      if ext == '.GZ' || ext == '.TGZ' || ext == '.BZ2'
+        File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{name}-#{phase}.log"), "w+") do |file|
+          file.puts Executive.exe("tar -xf '#{full_file_name}' -C '#{packages_dir}'")
+        end
       end
     end
 
-    def self.configure_ffish(g_opt)
-      ffish_each(g_opt) do |g_opt, current_ffish, chunk|
-        config_chunk(g_opt, current_ffish, chunk)
+    def self.do_ffish(g_opt, phase)
+      ffish_each(g_opt, phase) do |g_opt, current_ffish, chunk, phase|
+        File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
+          list = YAML::load(file)
+
+          if list.has_key? phase.to_sym
+            do_chunk(g_opt, current_ffish, chunk, phase)
+          elsif list.has_key? "#{phase}-macro".to_sym
+            do_macro(g_opt, current_ffish, chunk, phase)
+          end
+        end
       end
     end
 
-    def self.config_chunk(g_opt, current_ffish, chunk)
-      config = []
+    def self.do_macro(g_opt, current_ffish, chunk, phase)
+      File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
+        list = YAML::load(file)["#{phase}-macro".to_sym]
+        list.each do |item|
+          puts "|#{item}| #{item.class}"
+          do_chunk(g_opt, current_ffish, chunk, item)
+        end
+      end
+    end
+
+    def self.do_chunk(g_opt, current_ffish, chunk, phase)
+      (self.methods - Object.methods).each do |method|
+        if method =~ /^#{phase}_/
+          puts "NATIVE: #{phase}"
+          self.send("#{phase}_chunk".to_sym ,g_opt, current_ffish, chunk, phase)
+
+          return
+        end
+      end
+
+      puts "CHUNK: #{chunk}"
+      list = []
 
       File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
-        config = YAML::load(file)[:config]
+        list = YAML::load(file)[phase.to_sym]
       end
+
+      g_opt[:context][:chunk_dir] = File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:packages_dir], chunk)
+      g_opt[:context][:lib_dir] = File.join(g_opt[:ffarm_dir], current_ffish, "lib")
 
       # if isinstance(value, list):
       #   tp = ''
@@ -234,26 +221,51 @@ module Ffish
       #   p += str(value)
 
       cmd = ''
-      if config.class == Array
-        config.each do |item|
+      if list.class == Array
+        list.each do |item|
+          # puts "|#{item}|"
           cmd += item.to_str
         end
       else
-        cmd += config.to_str
+        cmd += list.to_str
       end
 
-      cmd = cmd % get_context(g_opt)
+      cmd = cmd % get_context(g_opt, chunk)
       puts "CMD: |#{cmd}|"
 
       pwd = Dir.pwd
-      Dir.chdir File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:packages_dir], chunk)
-      puts Executive.exe cmd
+      Dir.chdir g_opt[:context][:chunk_dir] if Dir.exists? g_opt[:context][:chunk_dir]
+      puts "STUFF: #{g_opt[:ffarm_dir]}-#{current_ffish}-#{g_opt[:logs_dir]}"
+      File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{chunk}-#{phase}.log"), "w+") do |file|
+       r = Executive.exe(cmd)
+       r.each do |line|
+        file.write line
+       end
+      end
       Dir.chdir pwd
-
     end
 
-    def self.get_context(g_opt)
-      g_opt[:context][:prefix] = File.join(g_opt[:ffarm_dir], get_current_ffish(g_opt[:state_file]))
+    def self.get_context(g_opt, chunk)
+      # order: default, init file, ffish, chunk
+      current_ffish = get_current_ffish(g_opt[:state_file])
+      g_opt[:context][:prefix] = File.join(g_opt[:ffarm_dir], current_ffish)
+      g_opt[:context][:aux_dir] = g_opt[:aux_dir]
+
+      File.open(File.join(g_opt[:ffish_dir], "#{current_ffish}.ffish"), "r") do |file|
+        c = YAML::load(file)[:context]
+
+        if c.class == Hash
+          g_opt[:context].merge! c
+        end
+      end
+
+      File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
+        c = YAML::load(file)[:context]
+
+        if c.class == Hash
+          g_opt[:context].merge! c
+        end
+      end
 
       g_opt[:context]
     end
