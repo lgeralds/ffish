@@ -33,9 +33,22 @@ module Ffish
       end
     end
 
-    def self.list_ffish(g_opt)
-      Dir.glob(File.join(g_opt[:ffish_dir], "*.ffish")) do |item|
-        puts File.basename(item, '.ffish')
+    def self.list_ffish(g_opt, ffish)
+      if ffish.class == Array && ffish.count != 0
+        chunks = []
+        File.open(File.join(g_opt[:ffish_dir], "#{ffish[0]}.ffish"), "r") do |file|
+          chunks = YAML::load(file)[:chunks]
+        end
+
+        chunks.each do |chunk|
+          puts chunk
+        end
+      else
+        Dir.glob(File.join(g_opt[:ffish_dir], "*.ffish")) do |item|
+          if ffish.class != String || File.basename(item, '.ffish') =~ /^#{ffish}/
+            puts File.basename(item, '.ffish')
+          end
+        end
       end
     end
 
@@ -67,15 +80,17 @@ module Ffish
       end
     end
 
-    def self.ffish_each(g_opt, phase=nil)
+    def self.ffish_each(g_opt, phase=nil, chunks=nil)
       current_ffish = get_current_ffish(g_opt[:state_file])
       ffish = {}
 
-      File.open(File.join(g_opt[:ffish_dir], "#{current_ffish}.ffish"), "r") do |file|
-        ffish = YAML::load(file)
+      if chunks.class != Array || chunks.count == 0
+        File.open(File.join(g_opt[:ffish_dir], "#{current_ffish}.ffish"), "r") do |file|
+          chunks = YAML::load(file)[:chunks]
+        end
       end
 
-      ffish[:chunks].each do |chunk|
+      chunks.each do |chunk|
         yield g_opt, current_ffish, chunk, phase
       end
     end
@@ -105,6 +120,7 @@ module Ffish
     end
 
     def self.fetch_chunk(g_opt, current_ffish, name, phase)
+      # fetch stuff needs to be logged
       puts "FETCH"
       require 'open-uri'
 
@@ -154,20 +170,16 @@ module Ffish
       ext = File.extname(full_file_name).upcase
 
       if ext == '.ZIP'
-        File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{name}-#{phase}.log"), "w+") do |file|
-          file.write Executive.exe("unzip -o -qq '#{full_file_name}' -d '#{packages_dir}'")
-        end
+        log g_opt, current_ffish, name, phase, Executive.exe("unzip -o -qq '#{full_file_name}' -d '#{packages_dir}'")
       end
 
       if ext == '.GZ' || ext == '.TGZ' || ext == '.BZ2'
-        File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{name}-#{phase}.log"), "w+") do |file|
-          file.puts Executive.exe("tar -xf '#{full_file_name}' -C '#{packages_dir}'")
-        end
+        log g_opt, current_ffish, name, phase, Executive.exe("tar -xf '#{full_file_name}' -C '#{packages_dir}'")
       end
     end
 
-    def self.do_ffish(g_opt, phase)
-      ffish_each(g_opt, phase) do |g_opt, current_ffish, chunk, phase|
+    def self.do_ffish(g_opt, phase, chunks=nil)
+      ffish_each(g_opt, phase, chunks) do |g_opt, current_ffish, chunk, phase|
         File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
           list = YAML::load(file)
 
@@ -200,7 +212,6 @@ module Ffish
         end
       end
 
-      puts "CHUNK: #{chunk}"
       list = []
 
       File.open(File.join(g_opt[:ffish_dir], current_ffish, "#{chunk}.chunk"), "r") do |file|
@@ -231,17 +242,11 @@ module Ffish
       end
 
       cmd = cmd % get_context(g_opt, chunk)
-      puts "CMD: |#{cmd}|"
 
       pwd = Dir.pwd
       Dir.chdir g_opt[:context][:chunk_dir] if Dir.exists? g_opt[:context][:chunk_dir]
-      puts "STUFF: #{g_opt[:ffarm_dir]}-#{current_ffish}-#{g_opt[:logs_dir]}"
-      File.open(File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir], "#{Time.now}-#{chunk}-#{phase}.log"), "w+") do |file|
-       r = Executive.exe(cmd)
-       r.each do |line|
-        file.write line
-       end
-      end
+
+      log g_opt, current_ffish, chunk, phase, Executive.exe(cmd)
       Dir.chdir pwd
     end
 
@@ -269,5 +274,22 @@ module Ffish
 
       g_opt[:context]
     end
+
+# localize the exe call to capture the exception and doing general logging
+
+    def self.log(g_opt, current_ffish, chunk, phase, text)
+      logs_dir = File.join(g_opt[:ffarm_dir], current_ffish, g_opt[:logs_dir])
+
+      if !File.directory?(logs_dir)
+        FileUtils.mkdir_p logs_dir
+      end
+
+      File.open(File.join(logs_dir, "#{Time.now}-#{chunk}-#{phase}.log"), "w+") do |file|
+        text.each do |line|
+          file.write line
+        end
+      end
+    end
+
   end # class
 end # module

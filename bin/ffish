@@ -7,6 +7,7 @@ DEBUG = false
 
 require 'ffish'
 require 'gli'
+
 include GLI::App
 
 version Ffish::VERSION
@@ -72,6 +73,10 @@ pre do |global_options, command, options, args|
   true
 end
 
+# post do |global_options, command, options, args|
+#   puts "SHIT HAPPENED"
+# end
+
 command :new do |c|
   c.desc 'Name of new ffish'
   c.arg_name 'ffish_names'
@@ -91,8 +96,16 @@ long_desc """
 """
 
 command :list do |c|
-  c.action do |global_options, options|
-    Ffish::Ffish.list_ffish(global_options)
+  c.desc 'List all ffish or list chunks in named ffish'
+  c.arg_name 'ffish'
+  c.switch 'c'
+
+  c.action do |global_options, options, ffish|
+    if options[:c]
+      ffish = ffish[0]
+    end
+  
+    Ffish::Ffish.list_ffish(global_options, ffish)
   end
 end
 
@@ -127,113 +140,30 @@ command :add do |c|
   end
 end
 
-#####################################
-# ffish phase commands
-# switches 
-#   --chain, -c
-#   --solo, -s
-#   --force, -f
-#####################################
+soft_commands = [:fetch, :configure, :make, :clean, :scrub, :test, :install, :build]
 
-desc 'Fetch ffish resource'
-long_desc """
-"""
+soft_commands.each do |new_command|
+  desc 'Normal description'
+  long_desc 'Long description'
+  command new_command do |c|
+    c.arg_name 'chunks'
 
-command :fetch do |c|
-  c.desc 'Fetch ffish resource'
-
-  c.action do |global_options, options|
-    # Ffish::Ffish.fetch_ffish(global_options)
-    Ffish::Ffish.do_ffish(global_options, c.names)
+    c.action do |global_options, options, chunks|
+      Ffish::Ffish.do_ffish(global_options, c.names, chunks)
+    end
   end
 end
 
-desc 'Configure ffish resource'
-long_desc """
-"""
-
-command :configure do |c|
-  c.desc 'Configure ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Make ffish resource'
-long_desc """
-"""
-
-command :make do |c|
-  c.desc 'Make ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Clean ffish resource'
-long_desc """
-"""
-
-command :clean do |c|
-  c.desc 'Clean ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Scrub ffish resource'
-long_desc """
-"""
-
-command :scrub do |c|
-  c.desc 'Scrub ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Test ffish resource'
-long_desc """
-"""
-
-command :test do |c|
-  c.desc 'Test ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Install ffish resource'
-long_desc """
-"""
-
-command :install do |c|
-  c.desc 'Install ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-desc 'Build ffish resource'
-long_desc """
-"""
-
-command :build do |c|
-  c.desc 'Build ffish resource'
-
-  c.action do |global_options, options|
-    Ffish::Ffish.do_ffish(global_options, c.names)
-  end
-end
-
-# begin
+begin
   exit run(ARGV)
-# rescue Exception => ex
-#   puts "TERMINATED: #{ex.message}"
-# end
+rescue GLI::UnknownCommand => ex
+  # puts (ex.exception.methods - Object.methods)
+  command = ex.exception.to_s.sub(/^Unknown command '(.+)'$/, '\1')
+  puts "\t: #{ex.exception}"
+  puts "\t: #{command}"
+  puts "\t: #{GLI::AppSupport.exe_name}"
+
+rescue Exception => ex
+  # puts "TERMINATED: #{ex.message}"
+  # puts "TERMINATED: #{ex.message.class}"
+end

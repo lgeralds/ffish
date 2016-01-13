@@ -12,7 +12,7 @@ class Executive
       }
 
       if $? && $?.exitstatus != 0
-        raise ExecutionException, r.unshift( command + "\n" ).to_s
+        raise ExecutionException, r.unshift( command + "\n" ).join('')
       end
 
       return r
